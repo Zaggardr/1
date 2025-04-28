@@ -41,14 +41,19 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   @override
   void initState() {
     super.initState();
-    _scannerController = MobileScannerController(
-      facing: CameraFacing.back,
-      torchEnabled: false,
-    );
+    _initializeScanner();
     WidgetsBinding.instance.addObserver(this);
     if (_currentIndex == 0) {
       _startCamera();
     }
+  }
+
+  void _initializeScanner() {
+    _scannerController = MobileScannerController(
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+    print('Scanner controller initialized');
   }
 
   Future<void> _startCamera() async {
@@ -63,14 +68,22 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     }
   }
 
+  Future<void> _stopCamera() async {
+    try {
+      await _scannerController.stop();
+      print('Camera stopped successfully');
+    } catch (e) {
+      print('Error stopping camera: $e');
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     print('AppLifecycleState changed: $state');
     if (state == AppLifecycleState.resumed && _currentIndex == 0) {
       _startCamera();
     } else if (state == AppLifecycleState.paused) {
-      _scannerController.stop();
-      print('Camera stopped due to app pause');
+      _stopCamera();
     }
   }
 
@@ -113,10 +126,23 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             'ingredientsText': product.ingredientsText ?? 'N/A',
             'allergens': product.allergens ?? 'N/A',
             'imageUrl': product.imageUrl ?? '',
+            'nutriScore': product.nutriScore ?? 'N/A',
+            'novaGroup': product.novaGroup ?? 'N/A',
+            'ecoScore': product.ecoScore ?? 'N/A',
+            'energy': product.getEnergy(),
+            'fat': product.getFat(),
+            'sugar': product.getSugar(),
+            'salt': product.getSalt(),
+            'protein': product.getProtein(),
             'qualityPercentage': product.getQualityPercentage(),
             'energyIndex': product.getEnergyIndex(),
             'nutritionalIndex': product.getNutritionalIndex(),
             'complianceIndex': product.getComplianceIndex(),
+            'positiveAspects': product.getPositiveAspects(),
+            'negativeAspects': product.getNegativeAspects(),
+            'recommendations': product.getRecommendations(),
+            'additives': product.getAdditives(),
+            'overallAnalysis': product.analyze(),
             'timestamp': FieldValue.serverTimestamp(),
           });
           print('Product saved to Firestore: ${product.productName}');
@@ -161,7 +187,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   }
 
   Widget _buildHistoryView() {
-    _scannerController.stop();
+    _stopCamera();
 
     final user = FirebaseAuth.instance.currentUser;
 
@@ -243,7 +269,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                     padding: const EdgeInsets.all(12.0),
                     child: Row(
                       children: [
-                        // Product Image
                         scanData['imageUrl'] != null && scanData['imageUrl'].isNotEmpty
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
@@ -265,7 +290,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                                 color: Color(0xFF757575),
                               ),
                         SizedBox(width: 12),
-                        // Product Details
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,7 +349,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                             ],
                           ),
                         ),
-                        // Delete Button
                         IconButton(
                           icon: const Icon(Icons.delete, color: Color(0xFFF44336)),
                           onPressed: () async {
@@ -357,7 +380,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(0)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -366,9 +389,15 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             _currentIndex = index;
             if (index == 0) {
               _scannedProduct = null;
+              _isFlashOn = false;
+              _scannerController = MobileScannerController(
+                facing: CameraFacing.back,
+                torchEnabled: false,
+              );
               _startCamera();
+              print('Switched to Scan tab, camera restarted');
             } else {
-              _scannerController.stop();
+              _stopCamera();
               print('Camera stopped due to tab switch to index: $index');
             }
           });
@@ -388,7 +417,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   Widget _buildScannerView() {
     return Stack(
       children: [
-        // Full-screen camera with an overlay
         MobileScanner(
           controller: _scannerController,
           onDetect: (capture) {
@@ -399,8 +427,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                 final String barcode = barcodes.first.rawValue ?? '';
                 print('Barcode detected: $barcode');
                 if (barcode.isNotEmpty) {
-                  // Simplified scanning area logic for testing
-                  print('Barcode within scanning area, processing...');
+                  print('Processing barcode...');
                   _fetchProductInfo(barcode);
                 } else {
                   print('Barcode value is empty');
@@ -425,87 +452,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             );
           },
         ),
-        // Overlay to create a focused scanning area
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final screenWidth = constraints.maxWidth;
-            final screenHeight = constraints.maxHeight;
-            final scanAreaWidth = screenWidth * 0.8;
-            final scanAreaHeight = screenHeight * 0.2;
-            final scanAreaTop = (screenHeight - scanAreaHeight) / 2;
-            final scanAreaLeft = (screenWidth - scanAreaWidth) / 2;
-
-            return Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    color: Colors.black.withOpacity(0.6),
-                  ),
-                ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: scanAreaTop,
-                  child: Container(
-                    color: Colors.black.withOpacity(0.6),
-                  ),
-                ),
-                Positioned(
-                  top: scanAreaTop + scanAreaHeight,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    color: Colors.black.withOpacity(0.6),
-                  ),
-                ),
-                Positioned(
-                  top: scanAreaTop,
-                  left: 0,
-                  width: scanAreaLeft,
-                  height: scanAreaHeight,
-                  child: Container(
-                    color: Colors.black.withOpacity(0.6),
-                  ),
-                ),
-                Positioned(
-                  top: scanAreaTop,
-                  right: 0,
-                  width: scanAreaLeft,
-                  height: scanAreaHeight,
-                  child: Container(
-                    color: Colors.black.withOpacity(0.6),
-                  ),
-                ),
-                Positioned(
-                  top: scanAreaTop,
-                  left: scanAreaLeft,
-                  child: Container(
-                    width: scanAreaWidth,
-                    height: scanAreaHeight,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Color.fromARGB(255, 255, 255, 255), width: 0),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color.fromARGB(255, 255, 255, 255).withOpacity(0),
-                          blurRadius: 12,
-                          spreadRadius: 4,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-        // Flashlight toggle button
         Positioned(
           top: 40,
           right: 16,
@@ -529,7 +475,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             ),
           ),
         ),
-        // Instructional text or scanned product card
         Align(
           alignment: Alignment.bottomCenter,
           child: _scannedProduct == null
@@ -541,7 +486,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'Align barcode within the frame',
+                    'Point the camera at a barcode to scan',
                     style: GoogleFonts.poppins(
                       color: Colors.white,
                       fontSize: 16,
@@ -569,7 +514,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                       padding: const EdgeInsets.all(12),
                       child: Row(
                         children: [
-                          // Product image
                           _scannedProduct!.imageUrl != null
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
@@ -681,7 +625,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   }
 
   Widget _buildProfileView() {
-    _scannerController.stop();
+    _stopCamera();
 
     final user = FirebaseAuth.instance.currentUser;
     return Container(
@@ -730,7 +674,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                       ElevatedButton(
                         onPressed: () async {
                           await FirebaseAuth.instance.signOut();
-                          Navigator.pushNamed(context, '/login');
+                          Navigator.pushReplacementNamed(context, '/login');
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFFF44336),

@@ -67,77 +67,283 @@ class ProductDetailsScreen extends StatelessWidget {
   }
 
   Widget _buildOverviewTab(Product product) {
+    final positives = product.getPositiveAspects();
+    final negatives = product.getNegativeAspects();
+    final recommendations = product.getRecommendations();
+    final additives = product.getAdditives();
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: product.imageUrl != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          product.imageUrl!,
-                          width: 150,
-                          height: 150,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => const Icon(
-                            Icons.broken_image,
+      child: Column(
+        children: [
+          // Product Image and Basic Info
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: product.imageUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              product.imageUrl!,
+                              width: 150,
+                              height: 150,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => const Icon(
+                                Icons.broken_image,
+                                size: 150,
+                                color: Color(0xFF757575),
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.image_not_supported,
                             size: 150,
                             color: Color(0xFF757575),
                           ),
-                        ),
-                      )
-                    : const Icon(
-                        Icons.image_not_supported,
-                        size: 150,
-                        color: Color(0xFF757575),
-                      ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                product.productName ?? 'Unknown Product',
-                style: GoogleFonts.poppins(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF212121),
-                ),
-              ),
-              SizedBox(height: 8),
-              _buildInfoTile('Brand', product.brands ?? 'N/A'),
-              _buildInfoTile('Nutri-Score', product.nutriScore?.toUpperCase() ?? 'N/A'),
-              _buildInfoTile('NOVA Group', product.novaGroup ?? 'N/A'),
-              _buildInfoTile('Eco-Score', product.ecoScore?.toUpperCase() ?? 'N/A'),
-              _buildInfoTile('Allergens', product.allergens ?? 'N/A'),
-              SizedBox(height: 16),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: product.analyze().contains('unhealthy')
-                      ? Color(0xFFF44336).withOpacity(0.1)
-                      : Color(0xFF4CAF50).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  product.analyze(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    color: product.analyze().contains('unhealthy')
-                        ? Color(0xFFF44336)
-                        : Color(0xFF4CAF50),
-                    fontWeight: FontWeight.w600,
                   ),
+                  const SizedBox(height: 16),
+                  Text(
+                    product.productName ?? 'Unknown Product',
+                    style: GoogleFonts.poppins(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF212121),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  _buildInfoTile('Brand', product.brands ?? 'N/A'),
+                  _buildInfoTile('Nutri-Score', product.nutriScore?.toUpperCase() ?? 'N/A'),
+                  _buildInfoTile('NOVA Group', product.novaGroup ?? 'N/A'),
+                  _buildInfoTile('Eco-Score', product.ecoScore?.toUpperCase() ?? 'N/A'),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Positive Aspects
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Positive Aspects',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF212121),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...positives.map((aspect) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.check_circle, color: Color(0xFF4CAF50), size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                aspect,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  color: Color(0xFF212121),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Negative Aspects
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Negative Aspects',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF212121),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...negatives.map((aspect) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.warning, color: Color(0xFFF44336), size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                aspect,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  color: Color(0xFF212121),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Recommendations
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Recommendations',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF212121),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...recommendations.map((rec) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info, color: Color(0xFF2196F3), size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                rec,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  color: Color(0xFF212121),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Additives
+          if (additives.isNotEmpty) ...[
+            Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Additives',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF212121),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...additives.map((additive) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.label, color: Color(0xFFFF9800), size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  additive,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 16,
+                                    color: Color(0xFF212121),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                  ],
                 ),
               ),
-            ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          // Overall Analysis
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Overall Analysis',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF212121),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: product.analyze().contains('unhealthy')
+                          ? Color(0xFFF44336).withOpacity(0.1)
+                          : Color(0xFF4CAF50).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      product.analyze(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        color: product.analyze().contains('unhealthy')
+                            ? Color(0xFFF44336)
+                            : Color(0xFF4CAF50),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -163,7 +369,7 @@ class ProductDetailsScreen extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 8),
-              _buildNutritionTile('Energy', product.getEnergy(), 'kcal'),
+              _buildNutritionTile('Energy', product.getEnergy().toStringAsFixed(1), 'kcal'),
               _buildNutritionTile('Fat', product.getFat().toString(), 'g'),
               _buildNutritionTile('Sugar', product.getSugar().toString(), 'g'),
               _buildNutritionTile('Salt', product.getSalt().toString(), 'g'),
