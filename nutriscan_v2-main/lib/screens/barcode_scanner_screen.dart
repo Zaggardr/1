@@ -4,6 +4,7 @@ import '../models/product.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/product_service.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class BarcodeScannerScreen extends StatefulWidget {
   @override
@@ -12,44 +13,64 @@ class BarcodeScannerScreen extends StatefulWidget {
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     with WidgetsBindingObserver {
-  final TextEditingController _barcodeController = TextEditingController();
   final ProductService _productService = ProductService();
   bool _isLoading = false;
-  bool _isScanning = false;
   late MobileScannerController _scannerController;
   int _currentIndex = 0;
+  Product? _scannedProduct;
+  bool _isFlashOn = false;
 
   final List<BottomNavigationBarItem> _bottomNavItems = [
-    const BottomNavigationBarItem(
-      icon: Icon(Icons.barcode_reader),
+    BottomNavigationBarItem(
+      icon: Icon(Icons.search),
       label: 'Scan',
-      backgroundColor: Colors.green, // Updated to match theme
+      backgroundColor: Color(0xFF2E7D32),
     ),
-    const BottomNavigationBarItem(
+    BottomNavigationBarItem(
       icon: Icon(Icons.history),
       label: 'History',
-      backgroundColor: Colors.green,
+      backgroundColor: Color(0xFF2E7D32),
     ),
-    const BottomNavigationBarItem(
+    BottomNavigationBarItem(
       icon: Icon(Icons.person_outline),
       label: 'Profile',
-      backgroundColor: Colors.green,
+      backgroundColor: Color(0xFF2E7D32),
     ),
   ];
 
   @override
   void initState() {
     super.initState();
-    _scannerController = MobileScannerController();
+    _scannerController = MobileScannerController(
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
     WidgetsBinding.instance.addObserver(this);
+    if (_currentIndex == 0) {
+      _startCamera();
+    }
+  }
+
+  Future<void> _startCamera() async {
+    try {
+      await _scannerController.start();
+      print('Camera started successfully');
+    } catch (e) {
+      print('Error starting camera: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error starting camera: $e')),
+      );
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _isScanning) {
-      _scannerController.start();
+    print('AppLifecycleState changed: $state');
+    if (state == AppLifecycleState.resumed && _currentIndex == 0) {
+      _startCamera();
     } else if (state == AppLifecycleState.paused) {
       _scannerController.stop();
+      print('Camera stopped due to app pause');
     }
   }
 
@@ -57,40 +78,29 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _scannerController.dispose();
-    _barcodeController.dispose();
+    print('Scanner controller disposed');
     super.dispose();
   }
 
-  Future<void> _startBarcodeScan() async {
-    setState(() {
-      _isScanning = true;
-      _currentIndex = 0;
-      _scannerController.dispose();
-      _scannerController = MobileScannerController();
-    });
-    await _scannerController.start();
-  }
-
   Future<void> _fetchProductInfo(String barcode) async {
+    print('Fetching product info for barcode: $barcode');
     setState(() => _isLoading = true);
-    _isScanning = false;
 
     try {
-      // Use ProductService to fetch product data
       final product = await _productService.fetchProduct(barcode);
 
       if (product != null) {
-        // Log product data for debugging KPI discrepancy
-        print(
-          'Product Data: Energy=${product.getEnergy()}, Sugars=${product.getSugar()}, '
-          'Fat=${product.getFat()}, Salt=${product.getSalt()}, '
-          'Ingredients=${product.ingredientsText}, Allergens=${product.allergens}',
-        );
+        print('Product Data: Energy=${product.getEnergy()}, Sugars=${product.getSugar()}, '
+            'Fat=${product.getFat()}, Salt=${product.getSalt()}, '
+            'Ingredients=${product.ingredientsText}, Allergens=${product.allergens}, '
+            'Quality Score=${product.getQualityPercentage().toStringAsFixed(1)}, '
+            'Image URL=${product.imageUrl}');
 
-        // Navigate to ProductDetailsScreen
-        Navigator.pushNamed(context, '/product', arguments: product);
+        setState(() {
+          _scannedProduct = product;
+          print('Product set in state: ${product.productName}');
+        });
 
-        // Save product to Firestore
         final user = FirebaseAuth.instance.currentUser;
         if (user != null) {
           await FirebaseFirestore.instance
@@ -98,67 +108,41 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
               .doc(user.uid)
               .collection('scans')
               .add({
-                'productName': product.productName ?? 'Unknown Product',
-                'brands': product.brands ?? 'N/A',
-                'ingredientsText': product.ingredientsText ?? 'N/A',
-                'timestamp': FieldValue.serverTimestamp(),
-              });
+            'productName': product.productName ?? 'Unknown Product',
+            'brands': product.brands ?? 'N/A',
+            'ingredientsText': product.ingredientsText ?? 'N/A',
+            'allergens': product.allergens ?? 'N/A',
+            'imageUrl': product.imageUrl ?? '',
+            'qualityPercentage': product.getQualityPercentage(),
+            'energyIndex': product.getEnergyIndex(),
+            'nutritionalIndex': product.getNutritionalIndex(),
+            'complianceIndex': product.getComplianceIndex(),
+            'timestamp': FieldValue.serverTimestamp(),
+          });
           print('Product saved to Firestore: ${product.productName}');
         }
       } else {
+        print('Product not found for barcode: $barcode');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Product not found for barcode: $barcode')),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error fetching data: $e')));
+      print('Error fetching product info: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching data: $e')),
+      );
     } finally {
       setState(() => _isLoading = false);
+      print('Loading state reset');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar:
-          _isScanning
-              ? null
-              : AppBar(
-                title: const Text('Nutrition Scanner'),
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                flexibleSpace: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.green[700]!, Colors.green[300]!],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                ),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.logout, color: Colors.white),
-                    onPressed: () {
-                      FirebaseAuth.instance.signOut();
-                      Navigator.pushNamed(context, '/login');
-                    },
-                  ),
-                ],
-              ),
       extendBody: true,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.green[100]!, Colors.white],
-          ),
-        ),
-        child: _buildCurrentScreen(),
-      ),
+      body: _buildCurrentScreen(),
       bottomNavigationBar: _buildSnapchatBottomBar(),
     );
   }
@@ -166,133 +150,213 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   Widget _buildCurrentScreen() {
     switch (_currentIndex) {
       case 0:
-        return _isScanning ? _buildScannerView() : _buildInputView();
+        return _buildScannerView();
       case 1:
         return _buildHistoryView();
       case 2:
         return _buildProfileView();
       default:
-        return _buildInputView();
+        return _buildScannerView();
     }
   }
 
   Widget _buildHistoryView() {
+    _scannerController.stop();
+
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushNamed(context, '/login');
+        Navigator.pushReplacementNamed(context, '/login');
       });
       return const Center(child: CircularProgressIndicator());
     }
 
-    return StreamBuilder<QuerySnapshot>(
-      stream:
-          FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .collection('scans')
-              .orderBy('timestamp', descending: true)
-              .limit(50)
-              .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFE8F5E9), Color(0xFFFFFFFF)],
+        ),
+      ),
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('scans')
+            .orderBy('timestamp', descending: true)
+            .limit(50)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error loading history: ${snapshot.error}',
-              style: const TextStyle(color: Colors.red, fontSize: 16),
-            ),
-          );
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(
-            child: Text(
-              'No scan history available',
-              style: TextStyle(fontSize: 16, color: Colors.black54),
-            ),
-          );
-        }
-
-        final scans = snapshot.data!.docs;
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16.0),
-          itemCount: scans.length,
-          itemBuilder: (context, index) {
-            final scanData = scans[index].data() as Map<String, dynamic>;
-            return Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              color: Colors.white,
-              shadowColor: Colors.green.withOpacity(0.4),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(16.0),
-                title: Text(
-                  scanData['productName'] ?? 'Unknown Product',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Error loading history: ${snapshot.error}',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: Colors.red,
                 ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    Text(
-                      'Brand: ${scanData['brands'] ?? 'N/A'}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    Text(
-                      'Scanned: ${scanData['timestamp'] != null ? (scanData['timestamp'] as Timestamp).toDate().toString() : 'N/A'}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () async {
-                    await FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user.uid)
-                        .collection('scans')
-                        .doc(scans[index].id)
-                        .delete();
-                  },
-                ),
-                onTap: () {
-                  final product = Product(
-                    productName: scanData['productName'],
-                    brands: scanData['brands'],
-                    ingredientsText: scanData['ingredientsText'],
-                  );
-                  Navigator.pushNamed(context, '/product', arguments: product);
-                },
               ),
             );
-          },
-        );
-      },
+          }
+
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return Center(
+              child: Text(
+                'No scan history available',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: Color(0xFF757575),
+                ),
+              ),
+            );
+          }
+
+          final scans = snapshot.data!.docs;
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16.0),
+            itemCount: scans.length,
+            itemBuilder: (context, index) {
+              final scanData = scans[index].data() as Map<String, dynamic>;
+              final qualityPercentage = scanData['qualityPercentage'] as double? ?? 0.0;
+
+              return GestureDetector(
+                onTap: () {
+                  final product = Product.fromFirestore(scanData);
+                  Navigator.pushNamed(context, '/product', arguments: product);
+                },
+                child: Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  color: Colors.white,
+                  shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
+                  margin: EdgeInsets.symmetric(vertical: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        // Product Image
+                        scanData['imageUrl'] != null && scanData['imageUrl'].isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  scanData['imageUrl'],
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => const Icon(
+                                    Icons.broken_image,
+                                    size: 50,
+                                    color: Color(0xFF757575),
+                                  ),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.image_not_supported,
+                                size: 50,
+                                color: Color(0xFF757575),
+                              ),
+                        SizedBox(width: 12),
+                        // Product Details
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                scanData['productName'] ?? 'Unknown Product',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF212121),
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Brand: ${scanData['brands'] ?? 'N/A'}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Color(0xFF757575),
+                                ),
+                              ),
+                              Text(
+                                'Scanned: ${scanData['timestamp'] != null ? (scanData['timestamp'] as Timestamp).toDate().toString() : 'N/A'}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Color(0xFF757575),
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Score: ${qualityPercentage.toStringAsFixed(1)}/100',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF212121),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: _getScoreColor(qualityPercentage),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      qualityPercentage >= 50 ? 'Good' : 'Bad',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Delete Button
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Color(0xFFF44336)),
+                          onPressed: () async {
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .collection('scans')
+                                .doc(scans[index].id)
+                                .delete();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
   Widget _buildSnapchatBottomBar() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.green[600],
+        gradient: LinearGradient(
+          colors: [Color(0xFF2E7D32), Color(0xFF81C784)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(0)),
       ),
       child: BottomNavigationBar(
@@ -300,7 +364,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
         onTap: (index) {
           setState(() {
             _currentIndex = index;
-            _isScanning = (index == 0 && _isScanning);
+            if (index == 0) {
+              _scannedProduct = null;
+              _startCamera();
+            } else {
+              _scannerController.stop();
+              print('Camera stopped due to tab switch to index: $index');
+            }
           });
         },
         items: _bottomNavItems,
@@ -309,6 +379,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
         unselectedItemColor: Colors.white70,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
+        selectedLabelStyle: GoogleFonts.poppins(fontSize: 14),
+        unselectedLabelStyle: GoogleFonts.poppins(fontSize: 14),
       ),
     );
   }
@@ -316,180 +388,380 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   Widget _buildScannerView() {
     return Stack(
       children: [
+        // Full-screen camera with an overlay
         MobileScanner(
           controller: _scannerController,
           onDetect: (capture) {
             if (!_isLoading) {
+              print('Barcode detection triggered');
               final List<Barcode> barcodes = capture.barcodes;
               if (barcodes.isNotEmpty) {
                 final String barcode = barcodes.first.rawValue ?? '';
                 print('Barcode detected: $barcode');
                 if (barcode.isNotEmpty) {
-                  _barcodeController.text = barcode;
+                  // Simplified scanning area logic for testing
+                  print('Barcode within scanning area, processing...');
                   _fetchProductInfo(barcode);
+                } else {
+                  print('Barcode value is empty');
                 }
+              } else {
+                print('No barcodes detected in this frame');
               }
+            } else {
+              print('Scanner ignored detection because _isLoading is true');
             }
           },
+          errorBuilder: (context, exception, child) {
+            print('MobileScanner error: $exception');
+            return Center(
+              child: Text(
+                'Error with scanner: $exception',
+                style: GoogleFonts.poppins(
+                  color: Colors.red,
+                  fontSize: 16,
+                ),
+              ),
+            );
+          },
         ),
+        // Overlay to create a focused scanning area
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final screenWidth = constraints.maxWidth;
+            final screenHeight = constraints.maxHeight;
+            final scanAreaWidth = screenWidth * 0.8;
+            final scanAreaHeight = screenHeight * 0.2;
+            final scanAreaTop = (screenHeight - scanAreaHeight) / 2;
+            final scanAreaLeft = (screenWidth - scanAreaWidth) / 2;
+
+            return Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.6),
+                  ),
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: scanAreaTop,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.6),
+                  ),
+                ),
+                Positioned(
+                  top: scanAreaTop + scanAreaHeight,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.6),
+                  ),
+                ),
+                Positioned(
+                  top: scanAreaTop,
+                  left: 0,
+                  width: scanAreaLeft,
+                  height: scanAreaHeight,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.6),
+                  ),
+                ),
+                Positioned(
+                  top: scanAreaTop,
+                  right: 0,
+                  width: scanAreaLeft,
+                  height: scanAreaHeight,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.6),
+                  ),
+                ),
+                Positioned(
+                  top: scanAreaTop,
+                  left: scanAreaLeft,
+                  child: Container(
+                    width: scanAreaWidth,
+                    height: scanAreaHeight,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Color.fromARGB(255, 255, 255, 255), width: 0),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color.fromARGB(255, 255, 255, 255).withOpacity(0),
+                          blurRadius: 12,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        // Flashlight toggle button
         Positioned(
           top: 40,
-          left: 20,
-          child: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
-            onPressed: () async {
-              await _scannerController.stop();
-              setState(() => _isScanning = false);
-            },
+          right: 16,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.5),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: Icon(
+                _isFlashOn ? Icons.flash_on : Icons.flash_off,
+                color: Colors.white,
+              ),
+              onPressed: () {
+                setState(() {
+                  _isFlashOn = !_isFlashOn;
+                  _scannerController.toggleTorch();
+                  print('Flashlight toggled: $_isFlashOn');
+                });
+              },
+            ),
           ),
         ),
+        // Instructional text or scanned product card
         Align(
           alignment: Alignment.bottomCenter,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 70),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              'Point your camera at a barcode',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ),
+          child: _scannedProduct == null
+              ? Container(
+                  margin: const EdgeInsets.only(bottom: 70),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Align barcode within the frame',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                )
+              : GestureDetector(
+                  onTap: () {
+                    print('Product card tapped, navigating to ProductDetailsScreen');
+                    Navigator.pushNamed(
+                      context,
+                      '/product',
+                      arguments: _scannedProduct,
+                    );
+                  },
+                  child: Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    color: Colors.white,
+                    shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
+                    margin: const EdgeInsets.only(bottom: 70, left: 16, right: 16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          // Product image
+                          _scannedProduct!.imageUrl != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    _scannedProduct!.imageUrl!,
+                                    width: 60,
+                                    height: 60,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        const Icon(
+                                      Icons.broken_image,
+                                      size: 60,
+                                      color: Color(0xFF757575),
+                                    ),
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.image_not_supported,
+                                  size: 60,
+                                  color: Color(0xFF757575),
+                                ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _scannedProduct!.productName ?? 'Unknown Product',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF212121),
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.close, color: Color(0xFF757575)),
+                                      onPressed: () {
+                                        setState(() {
+                                          _scannedProduct = null;
+                                          _startCamera();
+                                          print('Product card closed, camera restarted');
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Brand: ${_scannedProduct!.brands ?? 'N/A'}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    color: Color(0xFF757575),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Score: ${_scannedProduct!.getQualityPercentage().toStringAsFixed(1)}/100',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF212121),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: _getScoreColor(_scannedProduct!.getQualityPercentage()),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        _scannedProduct!.getQualityPercentage() >= 50 ? 'Good' : 'Bad',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
         ),
       ],
     );
   }
 
-  Widget _buildInputView() {
-    return ListView(
-      padding: const EdgeInsets.all(38.0),
-      children: [
-        const SizedBox(height: 16),
-        const Icon(
-          Icons.qr_code_scanner,
-          size: 200,
-          color: Colors.green, // Updated to match theme
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Scanner un produit',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Scanner le code-barres du produit',
-          style: TextStyle(fontSize: 16),
-        ),
-        const SizedBox(height: 8),
-        MaterialButton(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 60),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          color: Colors.green[600],
-          onPressed: _isLoading ? null : _startBarcodeScan,
-          child: const Text(
-            'Démarrer le scan',
-            style: TextStyle(fontSize: 16, color: Colors.white),
-          ),
-        ),
-        const SizedBox(height: 32),
-        const Text(
-          'Code-barres',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Entrez manuellement le code-barre:',
-          style: TextStyle(fontSize: 16),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.green.withOpacity(0.4),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              controller: _barcodeController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Entrez le code-barres ici',
-                hintStyle: TextStyle(color: Colors.grey),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        MaterialButton(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 60),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          color: Colors.green[600],
-          onPressed:
-              _isLoading
-                  ? null
-                  : () {
-                    if (_barcodeController.text.isNotEmpty) {
-                      _fetchProductInfo(_barcodeController.text);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Veuillez entrer un code-barres'),
-                        ),
-                      );
-                    }
-                  },
-          child: const Text(
-            'Analyser le produit',
-            style: TextStyle(fontSize: 14, color: Colors.white),
-          ),
-        ),
-      ],
-    );
+  Color _getScoreColor(double score) {
+    if (score <= 0) return Color(0xFFF44336);
+    if (score >= 100) return Color(0xFF4CAF50);
+    final red = (255 * (100 - score) / 100).toInt();
+    final green = (255 * score / 100).toInt();
+    return Color.fromRGBO(red, green, 0, 1);
   }
 
   Widget _buildProfileView() {
+    _scannerController.stop();
+
     final user = FirebaseAuth.instance.currentUser;
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Profil',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          if (user != null) ...[
-            Text('Email : ${user.email ?? 'Non disponible'}'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-                Navigator.pushNamed(context, '/login');
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text(
-                'Déconnexion',
-                style: TextStyle(color: Colors.white),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFE8F5E9), Color(0xFFFFFFFF)],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Profile',
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF212121),
               ),
             ),
-          ] else
-            const Text('Veuillez vous connecter'),
-        ],
+            const SizedBox(height: 16),
+            if (user != null) ...[
+              Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                color: Colors.white,
+                shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Email: ${user.email ?? 'Not available'}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          color: Color(0xFF212121),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await FirebaseAuth.instance.signOut();
+                          Navigator.pushNamed(context, '/login');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFFF44336),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Logout',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ] else
+              Text(
+                'Please log in',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: Color(0xFF212121),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -39,14 +39,14 @@ class _LoginScreenState extends State<LoginScreen> {
             // Rediriger selon le rôle
             switch (role) {
               case RoleManager.ROLE_ADMIN:
-                Navigator.pushReplacementNamed(context, '/admin');
+                Navigator.pushNamed(context, '/admin');
                 break;
               case RoleManager.ROLE_ENTERPRISE:
-                Navigator.pushReplacementNamed(context, '/enterprise');
+                Navigator.pushNamed(context, '/enterprise');
                 break;
               case RoleManager.ROLE_USER:
               default:
-                Navigator.pushReplacementNamed(context, '/scanner');
+                Navigator.pushNamed(context, '/scanner');
                 break;
             }
           } else {
@@ -153,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   alignment: Alignment.center,
                   child: TextButton(
                     onPressed:
-                        () => Navigator.pushReplacementNamed(context, '/reset'),
+                        () => Navigator.pushNamed(context, '/reset'),
                     child: Text('Forgot Password?'),
                   ),
                 ),
@@ -164,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text("Don't have an account?"),
                     TextButton(
                       onPressed:
-                          () => Navigator.pushReplacementNamed(
+                          () => Navigator.pushNamed(
                             context,
                             '/register',
                           ),

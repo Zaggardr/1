@@ -2,106 +2,124 @@ class Product {
   final String? productName;
   final String? brands;
   final String? ingredientsText;
-  final Map<String, dynamic>? nutriments;
+  final String? allergens;
   final String? nutriScore;
   final String? novaGroup;
   final String? ecoScore;
-  final String? allergens;
+  final String? imageUrl;
+  final double? energy;
+  final double? fat;
+  final double? sugar;
+  final double? salt;
+  final double? protein;
+  final double? qualityPercentage; // New field for overall quality score
+  final double? energyIndex; // New field for energy KPI
+  final double? nutritionalIndex; // New field for nutritional KPI
+  final double? complianceIndex; // New field for compliance KPI
 
   Product({
     this.productName,
     this.brands,
     this.ingredientsText,
-    this.nutriments,
+    this.allergens,
     this.nutriScore,
     this.novaGroup,
     this.ecoScore,
-    this.allergens,
+    this.imageUrl,
+    this.energy,
+    this.fat,
+    this.sugar,
+    this.salt,
+    this.protein,
+    this.qualityPercentage,
+    this.energyIndex,
+    this.nutritionalIndex,
+    this.complianceIndex,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
-    return Product(
+    final product = Product(
       productName: json['product_name'] as String?,
       brands: json['brands'] as String?,
       ingredientsText: json['ingredients_text'] as String?,
-      nutriments: json['nutriments'] as Map<String, dynamic>?,
-      nutriScore: json['nutriscore_grade']?.toString().toUpperCase(),
-      novaGroup: json['nova_group']?.toString(),
-      ecoScore: json['ecoscore_grade']?.toString().toUpperCase(),
       allergens: json['allergens'] as String?,
+      nutriScore: json['nutriscore_grade'] as String?,
+      novaGroup: json['nova_group']?.toString(),
+      ecoScore: json['ecoscore_grade'] as String?,
+      imageUrl: json['image_url'] as String? ?? json['image_front_url'] as String?,
+      energy: double.tryParse(json['nutriments']?['energy-kcal']?.toString() ?? '0'),
+      fat: double.tryParse(json['nutriments']?['fat']?.toString() ?? '0'),
+      sugar: double.tryParse(json['nutriments']?['sugars']?.toString() ?? '0'),
+      salt: double.tryParse(json['nutriments']?['salt']?.toString() ?? '0'),
+      protein: double.tryParse(json['nutriments']?['proteins']?.toString() ?? '0'),
+    );
+
+    // Calculate KPIs and quality percentage after creating the initial product
+    return Product(
+      productName: product.productName,
+      brands: product.brands,
+      ingredientsText: product.ingredientsText,
+      allergens: product.allergens,
+      nutriScore: product.nutriScore,
+      novaGroup: product.novaGroup,
+      ecoScore: product.ecoScore,
+      imageUrl: product.imageUrl,
+      energy: product.energy,
+      fat: product.fat,
+      sugar: product.sugar,
+      salt: product.salt,
+      protein: product.protein,
+      qualityPercentage: product.getQualityPercentage(),
+      energyIndex: product.getEnergyIndex(),
+      nutritionalIndex: product.getNutritionalIndex(),
+      complianceIndex: product.getComplianceIndex(),
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'product_name': productName,
-      'brands': brands,
-      'ingredients_text': ingredientsText,
-      'nutriments': nutriments,
-      'nutriscore_grade': nutriScore,
-      'nova_group': novaGroup,
-      'ecoscore_grade': ecoScore,
-      'allergens': allergens,
-    };
+  factory Product.fromFirestore(Map<String, dynamic> data) {
+    return Product(
+      productName: data['productName'] as String?,
+      brands: data['brands'] as String?,
+      ingredientsText: data['ingredientsText'] as String?,
+      allergens: data['allergens'] as String?,
+      imageUrl: data['imageUrl'] as String?,
+      qualityPercentage: data['qualityPercentage'] as double?,
+      energyIndex: data['energyIndex'] as double?,
+      nutritionalIndex: data['nutritionalIndex'] as double?,
+      complianceIndex: data['complianceIndex'] as double?,
+    );
   }
 
-  bool get hasData => productName != null || brands != null || ingredientsText != null || nutriments != null;
+  String getEnergy() => energy?.toStringAsFixed(1) ?? 'N/A';
+  double getFat() => fat ?? 0.0;
+  double getSugar() => sugar ?? 0.0;
+  double getSalt() => salt ?? 0.0;
+  double getProtein() => protein ?? 0.0;
 
-  double getSugar() => double.tryParse(nutriments?['sugars_100g']?.toString() ?? '0') ?? 0;
-  double getFat() => double.tryParse(nutriments?['fat_100g']?.toString() ?? '0') ?? 0;
-  double getSalt() => double.tryParse(nutriments?['salt_100g']?.toString() ?? '0') ?? 0;
-  double getProtein() => double.tryParse(nutriments?['proteins_100g']?.toString() ?? '0') ?? 0;
-  String getEnergy() => nutriments?['energy-kcal_100g']?.toString() ?? 'N/A';
-
-  // Indice Énergétique: Lower energy density is better (0–800 kcal/100g range)
-  double getEnergyIndex() {
-    final energy = double.tryParse(getEnergy()) ?? 0;
-    const maxEnergy = 800.0; // Typical max for food products
-    if (energy <= 0) return 100.0; // No energy is ideal
-    return ((maxEnergy - energy) / maxEnergy * 100).clamp(0, 100);
-  }
-
-  // Indice Nutritionnel: Lower sugar, fat, salt is better (WHO guidelines)
+  double getEnergyIndex() => energyIndex ?? (energy != null ? (energy! > 500 ? 50 : 100 - (energy! / 500) * 50) : 50);
   double getNutritionalIndex() {
-    final sugar = getSugar();
-    final fat = getFat();
-    final salt = getSalt();
-    const maxSugar = 22.5; // Approx 10% of 2000 kcal diet
-    const maxFat = 17.5; // Approx 30% of 2000 kcal diet
-    const maxSalt = 5.0; // WHO daily limit
-    double sugarScore = sugar <= 0 ? 100 : ((maxSugar - sugar) / maxSugar * 100).clamp(0, 100);
-    double fatScore = fat <= 0 ? 100 : ((maxFat - fat) / maxFat * 100).clamp(0, 100);
-    double saltScore = salt <= 0 ? 100 : ((maxSalt - salt) / maxSalt * 100).clamp(0, 100);
-    return (sugarScore * 0.4 + fatScore * 0.3 + saltScore * 0.3); // Weighted average
+    if (nutritionalIndex != null) return nutritionalIndex!;
+    double score = 100;
+    if (sugar != null && sugar! > 10) score -= 20;
+    if (fat != null && fat! > 20) score -= 20;
+    if (salt != null && salt! > 1) score -= 20;
+    return score.clamp(0, 100);
   }
 
-  // Indice de Conformité: Fewer additives/allergens is better
   double getComplianceIndex() {
-    int additiveCount = 0;
-    final ingredients = ingredientsText?.toLowerCase() ?? '';
-    // Common additives (simplified list)
-    const additives = ['e1', 'e2', 'e3', 'e4', 'e5', 'monosodium glutamate', 'aspartame'];
-    for (var additive in additives) {
-      if (ingredients.contains(additive)) additiveCount++;
-    }
-    final allergenCount = allergens?.split(',').length ?? 0;
-    const maxIssues = 10.0; // Arbitrary max for additives + allergens
-    final issueCount = additiveCount + allergenCount;
-    return ((maxIssues - issueCount) / maxIssues * 100).clamp(0, 100);
+    if (complianceIndex != null) return complianceIndex!;
+    double score = 100;
+    if (allergens != null && allergens!.isNotEmpty) score -= 30;
+    return score.clamp(0, 100);
   }
 
-  // Product Quality: Weighted average of KPIs
   double getQualityPercentage() {
-    return (getNutritionalIndex() * 0.4 + getEnergyIndex() * 0.3 + getComplianceIndex() * 0.3);
+    if (qualityPercentage != null) return qualityPercentage!;
+    return (getEnergyIndex() * 0.3 + getNutritionalIndex() * 0.4 + getComplianceIndex() * 0.3);
   }
 
   String analyze() {
-    final sugar = getSugar();
-    final fat = getFat();
-    final salt = getSalt();
-    if (sugar > 22.5 || fat > 17.5 || salt > 1.5) {
-      return 'Potentially unhealthy: High in ${sugar > 22.5 ? 'sugar' : ''} ${fat > 17.5 ? 'fat' : ''} ${salt > 1.5 ? 'salt' : ''}';
-    }
-    return 'Seems relatively healthy';
+    if (getQualityPercentage() < 50) return 'This product is unhealthy';
+    return 'This product is healthy';
   }
 }

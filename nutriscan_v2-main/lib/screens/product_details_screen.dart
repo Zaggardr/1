@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
 import '../models/product.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ProductDetailsScreen extends StatelessWidget {
   @override
@@ -10,14 +11,21 @@ class ProductDetailsScreen extends StatelessWidget {
     print('Displaying product: ${product.productName}, Brands: ${product.brands}');
 
     return DefaultTabController(
-      length: 4, // Added KPI tab
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Product Details'),
+          title: Text(
+            'Product Details',
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
           flexibleSpace: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.green[700]!, Colors.green[300]!],
+                colors: [Color(0xFF2E7D32), Color(0xFF81C784)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -32,7 +40,9 @@ class ProductDetailsScreen extends StatelessWidget {
             ],
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.greenAccent,
+            indicatorColor: Color(0xFF4CAF50),
+            labelStyle: GoogleFonts.poppins(fontSize: 14),
+            unselectedLabelStyle: GoogleFonts.poppins(fontSize: 14),
           ),
         ),
         body: Container(
@@ -40,7 +50,7 @@ class ProductDetailsScreen extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Colors.green[100]!, Colors.white],
+              colors: [Color(0xFFE8F5E9), Color(0xFFFFFFFF)],
             ),
           ),
           child: TabBarView(
@@ -60,36 +70,68 @@ class ProductDetailsScreen extends StatelessWidget {
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Card(
-        elevation: 12,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        shadowColor: Colors.green.withOpacity(0.4),
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
         child: Padding(
           padding: EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: product.imageUrl != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          product.imageUrl!,
+                          width: 150,
+                          height: 150,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const Icon(
+                            Icons.broken_image,
+                            size: 150,
+                            color: Color(0xFF757575),
+                          ),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.image_not_supported,
+                        size: 150,
+                        color: Color(0xFF757575),
+                      ),
+              ),
+              const SizedBox(height: 16),
               Text(
                 product.productName ?? 'Unknown Product',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: GoogleFonts.poppins(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF212121),
+                ),
               ),
               SizedBox(height: 8),
               _buildInfoTile('Brand', product.brands ?? 'N/A'),
-              _buildInfoTile('Nutri-Score', product.nutriScore ?? 'N/A'),
+              _buildInfoTile('Nutri-Score', product.nutriScore?.toUpperCase() ?? 'N/A'),
               _buildInfoTile('NOVA Group', product.novaGroup ?? 'N/A'),
-              _buildInfoTile('Eco-Score', product.ecoScore ?? 'N/A'),
+              _buildInfoTile('Eco-Score', product.ecoScore?.toUpperCase() ?? 'N/A'),
               _buildInfoTile('Allergens', product.allergens ?? 'N/A'),
               SizedBox(height: 16),
               Container(
                 padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: product.analyze().contains('unhealthy') ? Colors.red[100] : Colors.green[100],
+                  color: product.analyze().contains('unhealthy')
+                      ? Color(0xFFF44336).withOpacity(0.1)
+                      : Color(0xFF4CAF50).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   product.analyze(),
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     fontSize: 16,
-                    color: product.analyze().contains('unhealthy') ? Colors.red[900] : Colors.green[900],
+                    color: product.analyze().contains('unhealthy')
+                        ? Color(0xFFF44336)
+                        : Color(0xFF4CAF50),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -104,14 +146,23 @@ class ProductDetailsScreen extends StatelessWidget {
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Card(
-        elevation: 12,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
         child: Padding(
           padding: EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Nutrition (per 100g)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                'Nutrition (per 100g)',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF212121),
+                ),
+              ),
+              SizedBox(height: 8),
               _buildNutritionTile('Energy', product.getEnergy(), 'kcal'),
               _buildNutritionTile('Fat', product.getFat().toString(), 'g'),
               _buildNutritionTile('Sugar', product.getSugar().toString(), 'g'),
@@ -128,19 +179,47 @@ class ProductDetailsScreen extends StatelessWidget {
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Card(
-        elevation: 12,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
         child: Padding(
           padding: EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Ingredients', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                'Ingredients',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF212121),
+                ),
+              ),
               SizedBox(height: 8),
-              Text(product.ingredientsText ?? 'N/A', style: TextStyle(fontSize: 16)),
+              Text(
+                product.ingredientsText ?? 'N/A',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: Color(0xFF212121),
+                ),
+              ),
               SizedBox(height: 16),
-              Text('Allergens', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              Text(product.allergens ?? 'N/A', style: TextStyle(fontSize: 16)),
+              Text(
+                'Allergens',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF212121),
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                product.allergens ?? 'N/A',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: Color(0xFF212121),
+                ),
+              ),
             ],
           ),
         ),
@@ -157,9 +236,9 @@ class ProductDetailsScreen extends StatelessWidget {
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Card(
-        elevation: 12,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        shadowColor: Colors.green.withOpacity(0.4),
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shadowColor: Color(0xFF4CAF50).withOpacity(0.2),
         child: Padding(
           padding: EdgeInsets.all(16),
           child: Column(
@@ -167,33 +246,41 @@ class ProductDetailsScreen extends StatelessWidget {
             children: [
               Text(
                 'Key Performance Indicators',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF212121),
+                ),
               ),
               SizedBox(height: 16),
               _buildKpiIndicator(
-                'Indice Énergétique',
+                'Energy Index',
                 energyIndex / 100,
                 'Measures energy density (lower is better)',
-                Colors.blue,
+                Color(0xFF2196F3),
               ),
               SizedBox(height: 16),
               _buildKpiIndicator(
-                'Indice Nutritionnel',
+                'Nutritional Index',
                 nutritionalIndex / 100,
                 'Evaluates nutritional balance (sugar, fat, salt)',
-                Colors.orange,
+                Color(0xFFFF9800),
               ),
               SizedBox(height: 16),
               _buildKpiIndicator(
-                'Indice de Conformité',
+                'Compliance Index',
                 complianceIndex / 100,
                 'Assesses compliance (fewer additives/allergens)',
-                Colors.purple,
+                Color(0xFF9C27B0),
               ),
               SizedBox(height: 24),
               Text(
                 'Overall Product Quality',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF212121),
+                ),
               ),
               SizedBox(height: 8),
               CircularPercentIndicator(
@@ -202,16 +289,23 @@ class ProductDetailsScreen extends StatelessWidget {
                 percent: qualityPercentage / 100,
                 center: Text(
                   '${qualityPercentage.toStringAsFixed(1)}%',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF212121),
+                  ),
                 ),
-                progressColor: Colors.green,
-                backgroundColor: Colors.grey[300]!,
+                progressColor: Color(0xFF4CAF50),
+                backgroundColor: Colors.grey[200]!,
                 circularStrokeCap: CircularStrokeCap.round,
               ),
               SizedBox(height: 8),
               Text(
                 'Weighted average of KPIs',
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Color(0xFF757575),
+                ),
               ),
             ],
           ),
@@ -231,12 +325,19 @@ class ProductDetailsScreen extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF212121),
+                ),
               ),
               SizedBox(height: 4),
               Text(
                 description,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Color(0xFF757575),
+                ),
               ),
             ],
           ),
@@ -249,10 +350,14 @@ class ProductDetailsScreen extends StatelessWidget {
             percent: percent,
             center: Text(
               '${(percent * 100).toStringAsFixed(1)}%',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF212121),
+              ),
             ),
             progressColor: color,
-            backgroundColor: Colors.grey[300]!,
+            backgroundColor: Colors.grey[200]!,
             circularStrokeCap: CircularStrokeCap.round,
           ),
         ),
@@ -266,8 +371,23 @@ class ProductDetailsScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$title: ', style: TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(child: Text(value)),
+          Text(
+            '$title: ',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF212121),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: Color(0xFF212121),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -278,8 +398,21 @@ class ProductDetailsScreen extends StatelessWidget {
       padding: EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Text('$title: ', style: TextStyle(fontWeight: FontWeight.bold)),
-          Text('$value $unit'),
+          Text(
+            '$title: ',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF212121),
+            ),
+          ),
+          Text(
+            '$value $unit',
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              color: Color(0xFF212121),
+            ),
+          ),
         ],
       ),
     );
